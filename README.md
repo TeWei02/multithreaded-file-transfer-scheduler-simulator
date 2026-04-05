@@ -59,7 +59,7 @@ This project was developed independently as a technical portfolio piece demonstr
 
 ## Technical Highlights
 
-- **Flow-level statistics with per-job instrumentation**: Each transfer job records arrival time, first-start time, and completion time; the `MetricsCollector` derives per-flow waiting time, turnaround time, and response time, enabling aggregate statistics equivalent to those produced by real traffic profiling pipelines.
+- **Flow-level statistics with per-job instrumentation**: Each transfer job records arrival time, first start time, and completion time; the `MetricsCollector` derives per-flow waiting time, turnaround time, and response time, enabling aggregate statistics equivalent to those produced by real traffic profiling pipelines.
 - **Protocol-agnostic transfer dissection**: Jobs carry structured metadata (file size, transfer direction, user ID, priority) that abstractly models the header-field information a packet dissector would extract from IP/TCP flows; all scheduling decisions are driven exclusively by this metadata.
 - **Lightweight observability layer**: `MetricsCollector` aggregates completion events from concurrent worker threads in a thread-safe manner, functioning analogously to eBPF-based or DPDK-based per-flow counter probes used in kernel-bypass packet monitoring.
 - **CLI dashboard with cross-policy comparison table**: A formatted terminal report shows per-job result summaries and a side-by-side comparison table across all five scheduling policies — average waiting time, turnaround time, throughput, utilization, and fairness — enabling rapid visual analysis without external tooling.
