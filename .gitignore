@@ -1,0 +1,20 @@
+# Build artifacts
+simulator
+simulator_tests
+build/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+
+# Runtime-generated datasets and outputs
+data/generated_requests.csv
+output/result_*.csv
+output/summary.csv
+output/figures/
+output/*.png
+
+# OS/editor files
+.DS_Store
+.vscode/settings.json
