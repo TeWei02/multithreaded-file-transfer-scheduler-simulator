@@ -19,14 +19,15 @@ MMcResult computeMMc(double lambda_ms, double mu_ms, int c) {
 
     // P0: probability that all servers are idle.
     // P0 = 1 / [ sum_{k=0}^{c-1} a^k/k!  +  a^c/c! * 1/(1-rho) ]
+    // Compute incrementally: term[k] = a^k / k!
     double sum = 0.0;
-    double fact = 1.0;
+    double term = 1.0; // term[0] = a^0/0! = 1
     for (int k = 0; k < c; ++k) {
-        if (k > 0) fact *= k;
-        sum += std::pow(a, k) / fact;
+        sum += term;
+        term = term * a / static_cast<double>(k + 1); // term[k+1] = term[k]*a/(k+1)
     }
-    fact *= c; // c!
-    double last_term = std::pow(a, c) / fact / (1.0 - rho);
+    // term is now a^c / c!
+    double last_term = term / (1.0 - rho);
     sum += last_term;
     double P0 = 1.0 / sum;
 

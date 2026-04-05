@@ -202,14 +202,14 @@ void Simulation::runPolicy(SchedulingPolicy policy, WebDashboard* dash) {
     server.start();
 
     // Producer: enqueue jobs with simulated inter-arrival delays.
-    for (auto& job : jobs) {
-        if (job.arrival_ms > 0.0 && &job != &jobs.front()) {
-            double gap_ms  = job.arrival_ms - ((&job)[-1]).arrival_ms;
+    for (size_t i = 0; i < jobs.size(); ++i) {
+        if (i > 0 && jobs[i].arrival_ms > 0.0) {
+            double gap_ms  = jobs[i].arrival_ms - jobs[i - 1].arrival_ms;
             double wall_us = (gap_ms / static_cast<double>(cfg_.speed_factor)) * 1000.0;
             std::this_thread::sleep_for(
                 std::chrono::microseconds(static_cast<long long>(wall_us)));
         }
-        sched.addJob(job);
+        sched.addJob(jobs[i]);
     }
 
     sched.shutdown();
