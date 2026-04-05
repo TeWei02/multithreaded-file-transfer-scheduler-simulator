@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Run unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Simulator smoke test
+        run: |
+          ./build/simulator --generate-sample data/ci_requests.csv --n 40 --seed 7
+          ./build/simulator --input data/ci_requests.csv --benchmark --threads 4 --quantum 1.0
+          test -f output/summary.csv
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install plotting dependency
+        run: pip install matplotlib
+
+      - name: Plot summary charts
+        run: python scripts/plot_summary.py --input output/summary.csv --output output/figures
