@@ -68,11 +68,16 @@ int main(int argc, char* argv[]) {
             // Optional port argument
             if (i + 1 < argc && argv[i+1][0] != '-') {
                 try {
-                    cfg.web_port = std::stoi(argv[++i]);
+                    int p = std::stoi(argv[++i]);
+                    if (p < 1 || p > 65535) {
+                        std::cerr << "Invalid --web port '" << p
+                                  << "' (valid range: 1-65535), using default 8080\n";
+                    } else {
+                        cfg.web_port = p;
+                    }
                 } catch (...) {
                     std::cerr << "Invalid --web port '" << argv[i]
                               << "', using default 8080\n";
-                    --i;
                 }
             }
         }

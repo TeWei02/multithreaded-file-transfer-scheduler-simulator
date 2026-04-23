@@ -68,5 +68,5 @@ private:
     mutable std::mutex mutex_;
     std::unordered_map<int, HTBClass>         classes_;  // class_id → bucket
     std::unordered_map<int, std::deque<Packet>> queues_; // class_id → packets
-    static constexpr double CLASS_RATES[3] = { 20.0, 10.0, 5.0 }; // MB/s
+    inline static constexpr double CLASS_RATES[3] = { 20.0, 10.0, 5.0 }; // MB/s
 };

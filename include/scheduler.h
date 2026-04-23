@@ -92,5 +92,5 @@ private:
     double virtual_time_ = 0.0;
 
     // WFQ weight per user group (user_id % 3 → group 0/1/2).
-    static constexpr double WFQ_WEIGHTS[3] = { 1.0, 2.0, 3.0 };
+    inline static constexpr double WFQ_WEIGHTS[3] = { 1.0, 2.0, 3.0 };
 };

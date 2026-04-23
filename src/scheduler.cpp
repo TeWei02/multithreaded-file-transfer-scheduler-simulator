@@ -2,8 +2,6 @@
 #include <stdexcept>
 #include <algorithm>
 
-constexpr double Scheduler::WFQ_WEIGHTS[3];
-
 std::string policyName(SchedulingPolicy p) {
     switch (p) {
         case SchedulingPolicy::FCFS:        return "FCFS";

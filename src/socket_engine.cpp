@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 // ── Loopback server ──────────────────────────────────────────────────────────
+static std::thread g_accept_thread;
 
 // Accept-and-drain thread: reads data from connected clients and discards it.
 static void acceptLoop(int server_fd) {
@@ -61,7 +62,8 @@ LoopbackServerHandle startLoopbackServer() {
     ::getsockname(fd, reinterpret_cast<sockaddr*>(&addr), &len);
     int port = ntohs(addr.sin_port);
 
-    std::thread(acceptLoop, fd).detach();
+    if (g_accept_thread.joinable()) g_accept_thread.join();
+    g_accept_thread = std::thread(acceptLoop, fd);
     h.fd = fd;
     h.port = port;
     return h;
@@ -72,6 +74,7 @@ void stopLoopbackServer(const LoopbackServerHandle& server) {
         ::shutdown(server.fd, SHUT_RDWR);
         ::close(server.fd);
     }
+    if (g_accept_thread.joinable()) g_accept_thread.join();
 }
 
 // ── Client transfer ──────────────────────────────────────────────────────────

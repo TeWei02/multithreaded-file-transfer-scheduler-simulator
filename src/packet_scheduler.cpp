@@ -4,8 +4,6 @@
 
 // ── DRR ──────────────────────────────────────────────────────────────────────
 
-constexpr double HTBScheduler::CLASS_RATES[3];
-
 DRRScheduler::DRRScheduler(double quantum_mb) : quantum_mb_(quantum_mb) {}
 
 void DRRScheduler::enqueue(Packet pkt) {
