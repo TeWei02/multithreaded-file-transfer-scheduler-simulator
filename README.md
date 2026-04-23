@@ -328,17 +328,24 @@ Why different policies affect throughput and fairness:
 
 ---
 
-## Future Extensions
+## Future Extensions Status
 
-This simulator is intentionally designed as a foundation for more advanced work:
+All planned extension items are implemented:
 
-1. **Real socket-based transfer engine** — Replace the simulated sleep with actual TCP/UDP socket transfers over loopback to measure real I/O scheduler behavior.
-2. **Network congestion model** — Implement AIMD (Additive Increase Multiplicative Decrease) to simulate TCP-style congestion windows and observe throughput collapse under overload.
-3. **Packet-level scheduling** — Extend from job-level (flow-level) to packet-level simulation, implementing Deficit Round Robin (DRR) or Hierarchical Token Bucket (HTB) as used in the Linux `tc` subsystem.
-4. **QoS class model** — Map user groups to DiffServ Per-Hop Behaviors (Expedited Forwarding, Assured Forwarding) and compare with the simplified priority model.
-5. **Live traffic trace replay** — Feed real PCAP traces (via libpcap) as job generators to simulate scheduling of real-world workloads.
-6. **Web dashboard** — Replace the CLI report with a real-time browser-based visualization using WebSockets and a lightweight HTTP server.
-7. **Formal performance modeling** — Validate simulation results against analytical M/M/c and M/G/1 queuing models to assess simulation accuracy.
+1. **Real socket-based transfer engine** (`--engine socket`)  
+   Uses loopback TCP transfer measurement (`socketTransfer`) during worker service.
+2. **Network congestion model** (`--congestion`)  
+   Applies AIMD-based per-flow scaling to effective transfer bandwidth.
+3. **Packet-level scheduling** (`--packet-level --packet-scheduler drr|htb`)  
+   Includes DRR and HTB packet schedulers with packetized flow enqueueing.
+4. **QoS class model** (`--qos`)  
+   Maps users to DiffServ-like classes (EF/AF1/BE) and reports per-class metrics.
+5. **Live traffic trace replay** (`--trace <csv>`, `--pcap <file>` with `LIBPCAP=1`)  
+   Loads replay jobs from CSV and (optionally) PCAP traces.
+6. **Web dashboard** (`--web [port]`)  
+   Provides real-time browser visualization via lightweight HTTP + SSE streaming.
+7. **Formal performance modeling** (default, disable via `--no-qmodel`)  
+   Prints analytical M/M/c and M/G/1 comparisons against simulation output.
 
 ---
 

@@ -3,6 +3,7 @@
 #include <sstream>
 #include <iostream>
 #include <cstring>
+#include <cerrno>
 #include <algorithm>
 #include <iomanip>
 
@@ -206,6 +207,7 @@ void WebDashboard::handleClient(int client_fd) {
             char ping[1];
             ssize_t r = ::recv(client_fd, ping, 1, MSG_PEEK | MSG_DONTWAIT);
             if (r == 0) break; // client closed
+            if (r < 0 && errno != EAGAIN && errno != EWOULDBLOCK) break;
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         // Remove from list.

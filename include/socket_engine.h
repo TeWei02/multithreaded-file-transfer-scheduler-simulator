@@ -6,13 +6,18 @@
 #include <string>
 #include <functional>
 
+struct LoopbackServerHandle {
+    int fd   = -1;
+    int port = 0;
+};
+
 // Starts a local TCP echo server on loopback.
-// Returns the port number selected (0 = failure).
-int startLoopbackServer();
+// Returns {fd=-1,port=0} on failure.
+LoopbackServerHandle startLoopbackServer();
 
 // Transfers 'size_mb' megabytes via a TCP connection to localhost:port.
 // Returns the actual wall-clock duration in milliseconds.
 double socketTransfer(int port, double size_mb);
 
 // Stops the loopback server (closes the listening socket).
-void stopLoopbackServer(int server_fd);
+void stopLoopbackServer(const LoopbackServerHandle& server);

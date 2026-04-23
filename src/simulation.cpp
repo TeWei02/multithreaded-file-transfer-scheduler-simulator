@@ -133,8 +133,6 @@ void Simulation::runPolicy(SchedulingPolicy policy, WebDashboard* dash) {
     double quantum_mb = (cfg_.rr_quantum_ms / 1000.0) * cfg_.bandwidth;
     Scheduler    sched(policy, quantum_mb, cfg_.bandwidth);
     MetricsCollector metrics;
-    Server       server(cfg_.num_workers, cfg_.bandwidth,
-                        cfg_.speed_factor, sched, metrics);
 
     auto jobs = generateJobs();
 
@@ -145,12 +143,12 @@ void Simulation::runPolicy(SchedulingPolicy policy, WebDashboard* dash) {
     }
 
     // Extension 1: Socket engine setup.
-    int loopback_port = 0;
-    int loopback_fd   = -1;
+    LoopbackServerHandle loopback{};
+    bool use_socket_engine = false;
     if (cfg_.engine == "socket") {
-        loopback_port = startLoopbackServer();
-        loopback_fd   = loopback_port; // reuse port as handle identifier
-        if (loopback_port == 0)
+        loopback = startLoopbackServer();
+        use_socket_engine = (loopback.port > 0 && loopback.fd >= 0);
+        if (!use_socket_engine)
             std::cerr << "[socket] Failed to start loopback server; "
                          "falling back to sim mode.\n";
     }
@@ -159,6 +157,10 @@ void Simulation::runPolicy(SchedulingPolicy policy, WebDashboard* dash) {
     std::unique_ptr<CongestionController> congestion;
     if (cfg_.congestion)
         congestion = std::make_unique<CongestionController>(32.0, 0.80);
+
+    Server server(cfg_.num_workers, cfg_.bandwidth, cfg_.speed_factor,
+                  sched, metrics, use_socket_engine, loopback.port,
+                  congestion.get());
 
     // Extension 3: Packet-level scheduling info output.
     std::unique_ptr<DRRScheduler> drr_sched;
@@ -278,7 +280,7 @@ void Simulation::runPolicy(SchedulingPolicy policy, WebDashboard* dash) {
     all_stats_.push_back(stats);
 
     // Clean up socket engine.
-    if (loopback_fd > 0) stopLoopbackServer(loopback_fd);
+    if (loopback.fd >= 0) stopLoopbackServer(loopback);
 }
 
 void Simulation::printHeader() const {

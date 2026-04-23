@@ -13,8 +13,6 @@
 
 // ── Loopback server ──────────────────────────────────────────────────────────
 
-static int g_server_fd = -1;
-
 // Accept-and-drain thread: reads data from connected clients and discards it.
 static void acceptLoop(int server_fd) {
     while (true) {
@@ -37,9 +35,10 @@ static void acceptLoop(int server_fd) {
     }
 }
 
-int startLoopbackServer() {
+LoopbackServerHandle startLoopbackServer() {
+    LoopbackServerHandle h;
     int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) return 0;
+    if (fd < 0) return h;
 
     int opt = 1;
     ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
@@ -51,24 +50,25 @@ int startLoopbackServer() {
 
     if (::bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
         ::close(fd);
-        return 0;
+        return h;
     }
     if (::listen(fd, 128) < 0) {
         ::close(fd);
-        return 0;
+        return h;
     }
 
     socklen_t len = sizeof(addr);
     ::getsockname(fd, reinterpret_cast<sockaddr*>(&addr), &len);
     int port = ntohs(addr.sin_port);
 
-    g_server_fd = fd;
     std::thread(acceptLoop, fd).detach();
-    return port;
+    h.fd = fd;
+    h.port = port;
+    return h;
 }
 
-void stopLoopbackServer(int server_fd) {
-    if (server_fd >= 0) ::close(server_fd);
+void stopLoopbackServer(const LoopbackServerHandle& server) {
+    if (server.fd >= 0) ::close(server.fd);
 }
 
 // ── Client transfer ──────────────────────────────────────────────────────────

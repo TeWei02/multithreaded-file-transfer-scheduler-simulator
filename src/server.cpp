@@ -1,15 +1,22 @@
 #include "server.h"
 #include "metrics.h"
+#include "socket_engine.h"
+#include "congestion.h"
 #include <chrono>
 #include <thread>
 #include <cmath>
+#include <algorithm>
 
 using Clock = std::chrono::steady_clock;
 
 Server::Server(int num_workers, double bandwidth_mbps, int speed_factor,
-               Scheduler& scheduler, MetricsCollector& metrics)
+               Scheduler& scheduler, MetricsCollector& metrics,
+               bool use_socket_engine, int socket_port,
+               CongestionController* congestion)
     : num_workers_(num_workers), bandwidth_mbps_(bandwidth_mbps),
       speed_factor_(speed_factor), scheduler_(scheduler), metrics_(metrics),
+      use_socket_engine_(use_socket_engine), socket_port_(socket_port),
+      congestion_(congestion),
       sim_start_(Clock::now()) {}
 
 Server::~Server() { join(); }
@@ -63,11 +70,33 @@ void Server::workerLoop() {
         if (is_rr && work_mb > scheduler_.rrQuantumMb())
             work_mb = scheduler_.rrQuantumMb();
 
-        double service_ms = (work_mb / bandwidth_mbps_) * 1000.0;
-        double wall_us    = (service_ms / static_cast<double>(speed_factor_)) * 1000.0;
+        double effective_bw = bandwidth_mbps_;
+        if (congestion_) {
+            double util = total_service_ms_.load(std::memory_order_relaxed) /
+                          (std::max(1.0, simNow()) * static_cast<double>(num_workers_));
+            if (congestion_->isCongested(util))
+                congestion_->onCongestion(job.id);
+            double scale = congestion_->onSuccess(job.id);
+            effective_bw = std::max(1.0, bandwidth_mbps_ * scale);
+        }
 
-        std::this_thread::sleep_for(
-            std::chrono::microseconds(static_cast<long long>(wall_us)));
+        double service_ms = 0.0;
+        if (use_socket_engine_ && socket_port_ > 0) {
+            double wall_ms = socketTransfer(socket_port_, work_mb);
+            if (wall_ms > 0.0) {
+                service_ms = wall_ms * static_cast<double>(speed_factor_);
+            } else {
+                service_ms = (work_mb / effective_bw) * 1000.0;
+                double wall_us = (service_ms / static_cast<double>(speed_factor_)) * 1000.0;
+                std::this_thread::sleep_for(
+                    std::chrono::microseconds(static_cast<long long>(wall_us)));
+            }
+        } else {
+            service_ms = (work_mb / effective_bw) * 1000.0;
+            double wall_us = (service_ms / static_cast<double>(speed_factor_)) * 1000.0;
+            std::this_thread::sleep_for(
+                std::chrono::microseconds(static_cast<long long>(wall_us)));
+        }
 
         // Accumulate service time atomically.
         double old_val = total_service_ms_.load(std::memory_order_relaxed);

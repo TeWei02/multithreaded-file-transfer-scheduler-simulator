@@ -8,6 +8,8 @@
 #include <chrono>
 #include <functional>
 
+class CongestionController;
+
 // Server manages a pool of worker threads.
 // Each worker repeatedly fetches a job from the Scheduler,
 // simulates the transfer, then records the result via MetricsCollector.
@@ -17,7 +19,10 @@ public:
            double bandwidth_mbps,
            int    speed_factor,
            Scheduler& scheduler,
-           MetricsCollector& metrics);
+           MetricsCollector& metrics,
+           bool   use_socket_engine = false,
+           int    socket_port       = 0,
+           CongestionController* congestion = nullptr);
 
     ~Server();
 
@@ -45,10 +50,12 @@ private:
     int               speed_factor_;
     Scheduler&        scheduler_;
     MetricsCollector& metrics_;
+    bool              use_socket_engine_;
+    int               socket_port_;
+    CongestionController* congestion_;
 
     std::chrono::steady_clock::time_point sim_start_{};
 
     std::vector<std::thread> threads_;
     std::atomic<double>      total_service_ms_{0.0};
 };
-
