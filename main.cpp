@@ -67,8 +67,13 @@ int main(int argc, char* argv[]) {
             cfg.web_dashboard = true;
             // Optional port argument
             if (i + 1 < argc && argv[i+1][0] != '-') {
-                try { cfg.web_port = std::stoi(argv[++i]); }
-                catch (...) { --i; }
+                try {
+                    cfg.web_port = std::stoi(argv[++i]);
+                } catch (...) {
+                    std::cerr << "Invalid --web port '" << argv[i]
+                              << "', using default 8080\n";
+                    --i;
+                }
             }
         }
         else if (arg == "--help" || arg == "-h") {

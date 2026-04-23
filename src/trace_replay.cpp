@@ -30,16 +30,19 @@ std::vector<TransferJob> loadTraceCSV(const std::string& path) {
         ltrim(line); rtrim(line);
         if (line.empty()) continue;
 
-        // Detect header: first field is non-numeric (e.g. "flow_id").
+        // Detect header: first field must parse as an integer id.
         {
             std::istringstream probe(line);
             std::string first;
             std::getline(probe, first, ',');
             ltrim(first); rtrim(first);
-            bool is_number = !first.empty() &&
-                std::all_of(first.begin(), first.end(),
-                             [](unsigned char c){ return std::isdigit(c); });
-            if (!is_number) continue;
+            try {
+                size_t pos = 0;
+                (void)std::stoi(first, &pos);
+                if (pos != first.size()) continue;
+            } catch (...) {
+                continue;
+            }
         }
 
         std::istringstream ss(line);

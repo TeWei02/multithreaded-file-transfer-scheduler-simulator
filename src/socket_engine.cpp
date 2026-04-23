@@ -68,7 +68,10 @@ LoopbackServerHandle startLoopbackServer() {
 }
 
 void stopLoopbackServer(const LoopbackServerHandle& server) {
-    if (server.fd >= 0) ::close(server.fd);
+    if (server.fd >= 0) {
+        ::shutdown(server.fd, SHUT_RDWR);
+        ::close(server.fd);
+    }
 }
 
 // ── Client transfer ──────────────────────────────────────────────────────────
