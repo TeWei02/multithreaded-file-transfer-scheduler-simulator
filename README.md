@@ -161,15 +161,7 @@ CI steps:
 - Validate `output/summary.csv` generation
 - Run Python plotting script
 
-## 11. Experiment Report Template
-
-A ready-to-fill report template is provided at:
-
-- `docs/experiment_report_template.md`
-
-Use it for course reports, portfolio documentation, or reproducible experiment write-ups.
-
-## 12. Project Structure
+## 11. Project Structure
 
 ```text
 multithreaded-file-transfer-scheduler-simulator/
@@ -182,11 +174,10 @@ multithreaded-file-transfer-scheduler-simulator/
 ├── tests/
 ├── data/
 ├── output/
-├── scripts/
-└── docs/
+└── scripts/
 ```
 
-## 13. Design Assumptions
+## 12. Design Assumptions
 
 - This is a simulation (no real socket transfer).
 - Time progression is event-driven.
