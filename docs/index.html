@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multithreaded File Transfer &amp; Scheduling Simulator — Interactive Demo</title>
+<meta name="description" content="Interactive in-browser demonstration of five transfer scheduling strategies (FIFO, SJF, Priority, Round Robin, WFQ-like) over a discrete-event simulation of worker threads.">
+<meta name="theme-color" content="#0e1116">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-status="loading">
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <h1>Multithreaded File Transfer &amp; Scheduling Simulator</h1>
+        <p class="tagline">Discrete-event simulation of worker-thread dispatch: compare FIFO, SJF, Priority, Round Robin and WFQ-like scheduling on the same workload.</p>
+      </div>
+    </div>
+    <div class="header-links">
+      <span class="badge" id="badge-mode">interactive demo</span>
+      <a class="btn btn-ghost" href="verify.html">Equivalence check</a>
+      <a class="btn btn-ghost" href="https://github.com/TeWei02/multithreaded-file-transfer-scheduler-simulator" target="_blank" rel="noopener">Source repository</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="notice notice-info" id="status-banner" role="status">
+    <strong>Simulation only.</strong> This page runs a JavaScript port of the project's C++ simulation core in your browser. No file is transferred, no socket is opened and no server is contacted; all figures describe synthetic workloads, not measurements of a deployed system.
+  </div>
+  <div class="notice notice-error" id="error-banner" hidden></div>
+
+  <!-- ===================== CONTROLS ===================== -->
+  <section class="panel" id="panel-controls">
+    <div class="panel-head">
+      <h2>1 · Workload and parameters</h2>
+      <p class="panel-sub">Pick a workload, set the server parameters, then run one or more schedulers on exactly the same input.</p>
+    </div>
+
+    <div class="control-grid">
+      <div class="field field-wide">
+        <label for="workload-select">Workload</label>
+        <select id="workload-select"></select>
+        <p class="hint" id="workload-note"></p>
+      </div>
+
+      <div class="field" id="gen-fields" hidden>
+        <label for="gen-n">Requests to generate</label>
+        <input type="number" id="gen-n" min="1" max="400" step="1" value="60">
+        <label for="gen-seed" class="mt">Seed</label>
+        <input type="number" id="gen-seed" min="0" max="999999" step="1" value="7">
+      </div>
+
+      <div class="field" id="csv-fields" hidden>
+        <label for="csv-file">CSV file</label>
+        <input type="file" id="csv-file" accept=".csv,text/csv">
+        <label for="csv-text" class="mt">or paste CSV</label>
+        <textarea id="csv-text" rows="6" spellcheck="false" placeholder="request_id,client_id,arrival_time,file_size_mb,estimated_bandwidth_mb_per_sec,priority"></textarea>
+      </div>
+
+      <div class="field">
+        <label for="threads">Worker threads <output id="threads-out">4</output></label>
+        <input type="range" id="threads" min="1" max="16" step="1" value="4">
+      </div>
+
+      <div class="field">
+        <label for="quantum">Round-Robin quantum (s) <output id="quantum-out">1.00</output></label>
+        <input type="range" id="quantum" min="0.05" max="10" step="0.05" value="1">
+        <p class="hint">Applied by the Round Robin scheduler only.</p>
+      </div>
+
+      <div class="field">
+        <label for="overhead">Per-dispatch overhead (s) <output id="overhead-out">0.050</output></label>
+        <input type="range" id="overhead" min="0" max="1" step="0.005" value="0.05">
+        <p class="hint">Charged to every slice handed to a worker.</p>
+      </div>
+
+      <div class="field field-wide">
+        <label>Schedulers to compare</label>
+        <div class="checks" id="scheduler-checks"></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="run-btn">Run simulation</button>
+      <button class="btn" id="reset-btn">Reset parameters</button>
+      <span class="run-status" id="run-status"></span>
+    </div>
+  </section>
+
+  <!-- ===================== SUMMARY ===================== -->
+  <section class="panel" id="panel-summary">
+    <div class="panel-head">
+      <h2>2 · Scheduler comparison</h2>
+      <p class="panel-sub">
+        Every scheduler below processed the same requests, threads, quantum and overhead.
+        Best value per column is highlighted; “dispatches” counts how many slices were handed to workers.
+      </p>
+    </div>
+    <div class="table-scroll">
+      <table class="data-table" id="summary-table">
+        <thead>
+          <tr>
+            <th>Scheduler</th>
+            <th class="num">Avg waiting (s)</th>
+            <th class="num">Avg turnaround (s)</th>
+            <th class="num">Avg response (s)</th>
+            <th class="num">Throughput (req/s)</th>
+            <th class="num">Fairness (Jain)</th>
+            <th class="num">Makespan (s)</th>
+            <th class="num">Dispatches</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="chart-grid">
+      <figure class="chart">
+        <figcaption>Average waiting time (lower is better)</figcaption>
+        <canvas id="chart-waiting" height="200"></canvas>
+      </figure>
+      <figure class="chart">
+        <figcaption>Average turnaround time (lower is better)</figcaption>
+        <canvas id="chart-turnaround" height="200"></canvas>
+      </figure>
+      <figure class="chart">
+        <figcaption>Throughput (higher is better)</figcaption>
+        <canvas id="chart-throughput" height="200"></canvas>
+      </figure>
+      <figure class="chart">
+        <figcaption>Jain fairness index over client throughput (1.0 = equal)</figcaption>
+        <canvas id="chart-fairness" height="200"></canvas>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ===================== TIMELINE ===================== -->
+  <section class="panel" id="panel-timeline">
+    <div class="panel-head">
+      <h2>3 · Worker timeline</h2>
+      <p class="panel-sub">
+        One row per worker thread. Each block is a slice the scheduler handed to that worker; colour identifies the client.
+        Use the controls to observe when requests are dispatched, how long they wait and how work interleaves.
+      </p>
+    </div>
+    <div class="timeline-controls">
+      <div class="scheduler-tabs" id="scheduler-tabs" role="tablist"></div>
+      <div class="playback">
+        <button class="btn btn-small" id="play-btn">Play</button>
+        <button class="btn btn-small" id="step-prev" title="Jump to previous dispatch">Prev event</button>
+        <button class="btn btn-small" id="step-next" title="Jump to next dispatch">Next event</button>
+        <label for="scrub" class="sr-only">Timeline position</label>
+        <input type="range" id="scrub" min="0" max="1" step="0.001" value="0">
+        <span class="mono" id="clock">t = 0.000 s</span>
+        <label for="speed">speed</label>
+        <select id="speed">
+          <option value="0.25">0.25×</option>
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+      </div>
+    </div>
+    <div class="gantt-wrap">
+      <canvas id="gantt" height="260"></canvas>
+      <div class="tooltip" id="gantt-tooltip" hidden></div>
+    </div>
+    <div class="legend" id="gantt-legend"></div>
+  </section>
+
+  <!-- ===================== DETAIL ===================== -->
+  <section class="panel" id="panel-detail">
+    <div class="panel-head">
+      <h2>4 · Per-request results and per-client view</h2>
+      <p class="panel-sub" id="detail-sub">Columns match the CSV written by the command-line version.</p>
+    </div>
+    <div class="detail-grid">
+      <div>
+        <h3 class="sub-head">Requests <span class="muted" id="detail-scheduler-label"></span></h3>
+        <div class="table-scroll table-tall">
+          <table class="data-table compact" id="detail-table">
+            <thead>
+              <tr>
+                <th class="num">ID</th>
+                <th class="num">client</th>
+                <th class="num">arrival</th>
+                <th class="num">start</th>
+                <th class="num">finish</th>
+                <th class="num">waiting</th>
+                <th class="num">turnaround</th>
+                <th class="num">response</th>
+                <th class="num">thread</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <h3 class="sub-head">Per-client throughput</h3>
+        <div class="table-scroll">
+          <table class="data-table compact" id="client-table">
+            <thead>
+              <tr>
+                <th class="num">client</th>
+                <th class="num">requests</th>
+                <th class="num">data (MB)</th>
+                <th class="num">active span (s)</th>
+                <th class="num">MB/s</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <h3 class="sub-head">Worker utilisation</h3>
+        <div class="table-scroll">
+          <table class="data-table compact" id="worker-table">
+            <thead>
+              <tr><th class="num">thread</th><th class="num">busy (s)</th><th class="num">utilisation</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="export-results-btn">Download result CSV (active scheduler)</button>
+      <button class="btn" id="export-summary-btn">Download summary CSV (all selected)</button>
+    </div>
+  </section>
+
+  <!-- ===================== METHOD ===================== -->
+  <section class="panel" id="panel-method">
+    <div class="panel-head">
+      <h2>5 · What this demo is, and what it is not</h2>
+    </div>
+    <div class="method-grid">
+      <div>
+        <h3 class="sub-head">Model</h3>
+        <ul>
+          <li>Discrete-event simulation: time advances from event to event, not in fixed ticks.</li>
+          <li>A server owns a fixed number of worker threads; each worker serves one slice at a time.</li>
+          <li>A slice takes <span class="mono">remaining_size / bandwidth</span> simulated seconds plus a configurable per-dispatch overhead.</li>
+          <li>Round Robin caps a slice at the quantum; unfinished requests re-enter the queue.</li>
+          <li>WFQ-like uses a priority-derived weight and virtual finish tags; it is a simplified approximation, not a byte-accurate implementation of weighted fair queueing.</li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="sub-head">Honest scope</h3>
+        <ul>
+          <li>No real transfer, sockets, threads or disk I/O are involved; the numbers are properties of the model.</li>
+          <li>Bandwidth values are inputs from the workload file, not measured link speeds.</li>
+          <li>Metrics characterise the synthetic workloads shipped with the project and the parameter ranges reachable in this UI. They are not benchmark results from a deployed server.</li>
+          <li>Workloads marked “C++ CLI” were produced by <span class="mono">./simulator --generate-sample … --n N --seed S</span>; the boundary workload is hand-authored to exercise ties and limit cases.</li>
+          <li>The browser-side generator uses a small local PRNG and is labelled accordingly; it does not reproduce the CLI's <span class="mono">std::mt19937</span> sequence. Use the bundled CLI datasets for exact reproduction.</li>
+          <li>No analytics, no cookies and no requests to third parties: every asset is served from this repository.</li>
+        </ul>
+      </div>
+    </div>
+    <details class="details">
+      <summary>Equivalence with the command-line simulator</summary>
+      <p>
+        The JavaScript core (<span class="mono">engine.js</span>) mirrors the C++ modules <span class="mono">scheduler</span>,
+        <span class="mono">simulation_engine</span> and <span class="mono">metrics</span> operation by operation, including the
+        heap procedures used by the C++ standard library implementation and the tie-breaking rules among equal keys.
+        Across 12 reference configurations and all five schedulers the port reproduces 2455 per-request rows and 60
+        summary rows of the command-line output; the largest deviation observed is 4.99e-5, inside the four-decimal
+        rounding of the CSV the CLI writes. You can re-run the whole comparison yourself on the
+        <a href="verify.html">equivalence check page</a>: it replays those twelve workloads in your browser against the
+        CSV files recorded from the command-line simulator, which are stored as plain text in
+        <span class="mono">oracle_bundle.js</span>.
+      </p>
+    </details>
+  </section>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>Multithreaded File Transfer and Scheduling Simulator · interactive static demonstration · maintained by Te-Wei Ko</p>
+    <p class="muted">Runs entirely offline in the browser once loaded. Installable as a standalone page from your browser's app menu.</p>
+  </div>
+</footer>
+
+<pre id="diag" hidden></pre>
+
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

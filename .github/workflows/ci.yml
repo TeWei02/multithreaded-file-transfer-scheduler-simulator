@@ -7,17 +7,49 @@ on:
     branches: [main, master]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install clang-format
-        run: sudo apt-get install -y clang-format
-      - name: Check formatting
-        run: find . -name '*.cpp' -o -name '*.h' -o -name '*.hpp' | xargs clang-format --dry-run --Werror
-      - name: Build
+
+      - name: Install tooling
         run: |
-          mkdir -p build && cd build
-          cmake .. && make -j$(nproc)
-      - name: Test
-        run: cd build && ctest --output-on-failure || true
+          sudo apt-get update
+          sudo apt-get install -y python3-matplotlib
+
+      - name: Build with CMake
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j"$(nproc)"
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Build with Make
+        run: |
+          make clean
+          make
+          make test
+
+      - name: Benchmark smoke test
+        run: |
+          ./simulator --input data/sample_requests.csv --benchmark --threads 4 --output-dir output
+          test "$(head -n 1 output/summary.csv)" = "scheduler,avg_waiting_time,avg_turnaround_time,avg_response_time,throughput,fairness_index,total_completion_time"
+          test "$(($(wc -l < output/summary.csv) - 1))" -eq 5
+          for scheduler in fifo sjf priority rr wfq; do
+            test "$(($(wc -l < "output/result_${scheduler}.csv") - 1))" -eq 15
+          done
+
+      - name: Plotting smoke test
+        run: |
+          MPLBACKEND=Agg python3 scripts/plot_summary.py --input output/summary.csv --output output/figures
+          test "$(ls output/figures/*.png | wc -l)" -ge 1
+
+      - name: Deterministic generator and reference outputs
+        run: bash tools/run_oracle.sh --check
+
+      - name: Demo assets are up to date
+        run: |
+          python3 tools/build_oracle_bundle.py
+          bash tools/sync_docs_data.sh --check
+          git diff --exit-code -- docs/

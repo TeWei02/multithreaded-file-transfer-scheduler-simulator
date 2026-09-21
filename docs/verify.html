@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Equivalence check — JavaScript port vs. C++ command-line output</title>
+<meta name="description" content="Replays twelve reference workloads through the in-browser simulation core and compares every request row and summary row against the CSV written by the C++ command-line simulator.">
+<meta name="theme-color" content="#0e1116">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-status="running">
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <h1>Equivalence check</h1>
+        <p class="tagline">The in-browser simulation core replayed against files produced by the C++ command-line simulator.</p>
+      </div>
+    </div>
+    <div class="header-links">
+      <a class="btn btn-ghost" href="index.html">Back to the interactive demo</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="notice notice-info">
+    <strong>What is compared.</strong> Twelve workloads (the bundled sample, four generated datasets, the hand-authored
+    boundary workload, under thread counts from 1 to 16 and different quantum and overhead values) are re-simulated in this
+    browser by <span class="mono">engine.js</span>. Every per-request row and every summary row is then compared field by
+    field with the CSV files that the C++ simulator wrote for the same configuration. The reference CSVs are stored as
+    plain text in <span class="mono">oracle_bundle.js</span> and are never modified here.
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2 id="verdict">Checking…</h2>
+      <p class="panel-sub" id="verdict-sub">Replaying workloads in your browser.</p>
+    </div>
+    <div class="table-scroll">
+      <table class="data-table" id="scenario-table">
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th class="num">requests</th>
+            <th class="num">threads</th>
+            <th class="num">quantum (s)</th>
+            <th class="num">overhead (s)</th>
+            <th class="num">schedulers</th>
+            <th class="num">rows compared</th>
+            <th class="num">max deviation</th>
+            <th>result</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <details class="details">
+      <summary>Why small deviations are expected</summary>
+      <p>
+        The command-line simulator writes times with four decimal places. Any difference smaller than 5e-5 therefore comes
+        from that rounding step rather than from a different result. The check accepts a row when the deviation stays
+        inside that rounding unit and flags anything larger.
+      </p>
+    </details>
+    <details class="details">
+      <summary>Raw report</summary>
+      <pre class="mono" id="raw-report" style="white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto"></pre>
+    </details>
+  </section>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>Multithreaded File Transfer and Scheduling Simulator · equivalence check · maintained by Te-Wei Ko</p>
+  </div>
+</footer>
+
+<pre id="parity-result" hidden>RUNNING</pre>
+
+<script src="engine.js"></script>
+<script src="oracle_bundle.js"></script>
+<script>
+(function () {
+  'use strict';
+  var bundle = window.ORACLE_BUNDLE;
+  var MFTS = window.MFTS;
+  var NUMERIC_ROW_FIELDS = ['arrival_time', 'start_time', 'finish_time', 'waiting_time',
+                            'turnaround_time', 'response_time'];
+  var SUMMARY_FIELDS = ['avg_waiting_time', 'avg_turnaround_time', 'avg_response_time',
+                        'throughput', 'fairness_index', 'total_completion_time'];
+  var ROW_TOLERANCE = 5e-5;      // the CLI prints four decimals
+  var SUMMARY_TOLERANCE = 5e-6;  // the CLI prints six decimals
+
+  var report = {
+    scenarios: [], mismatches: 0, maxAbsDiff: 0,
+    comparedRows: 0, comparedSummaries: 0, comparedSchedulers: 0
+  };
+
+  function camel(field) {
+    return field.replace(/_([a-z])/g, function (m, c) { return c.toUpperCase(); });
+  }
+
+  function process() {
+    for (var si = 0; si < bundle.scenarios.length; si++) {
+      var sc = bundle.scenarios[si];
+      var parsed = MFTS.parseRequestsCsv(sc.inputCsv);
+      if (parsed.error) {
+        report.mismatches++;
+        report.scenarios.push({ name: sc.name, ok: false, error: parsed.error });
+        continue;
+      }
+      var entry = {
+        name: sc.name,
+        requests: parsed.requests.length,
+        threads: sc.config.threads,
+        quantumSec: sc.config.quantumSec,
+        overheadSec: sc.config.overheadSec,
+        schedulers: MFTS.SCHEDULERS.length,
+        rows: 0,
+        maxAbsDiff: 0,
+        problems: 0,
+        ok: true
+      };
+
+      for (var k = 0; k < MFTS.SCHEDULERS.length; k++) {
+        var sched = MFTS.SCHEDULERS[k];
+        var run = MFTS.runOneScheduler(sched, parsed.requests, sc.config);
+        var expectedRows = sc.expectedRows[sched];
+        var expectedSummary = sc.expectedSummary[sched];
+        report.comparedSchedulers++;
+
+        if (run.rows.length !== expectedRows.length) {
+          entry.rows += expectedRows.length;
+          entry.problems++;
+          entry.ok = false;
+          continue;
+        }
+        for (var ri = 0; ri < run.rows.length; ri++) {
+          var got = run.rows[ri];
+          var want = expectedRows[ri];
+          if (got.requestId !== parseInt(want.request_id, 10) ||
+              String(got.clientId) !== want.client_id ||
+              String(got.assignedThread) !== want.assigned_thread ||
+              got.scheduler !== want.scheduler_name) {
+            entry.problems++;
+          }
+          for (var f = 0; f < NUMERIC_ROW_FIELDS.length; f++) {
+            var field = NUMERIC_ROW_FIELDS[f];
+            var diff = Math.abs(got[camel(field)] - parseFloat(want[field]));
+            if (diff > entry.maxAbsDiff) entry.maxAbsDiff = diff;
+            if (diff > ROW_TOLERANCE) entry.problems++;
+          }
+          report.comparedRows++;
+          entry.rows++;
+        }
+        for (var f2 = 0; f2 < SUMMARY_FIELDS.length; f2++) {
+          var sf = SUMMARY_FIELDS[f2];
+          var sdiff = Math.abs(run.summary[camel(sf)] - parseFloat(expectedSummary[sf]));
+          if (sdiff > entry.maxAbsDiff) entry.maxAbsDiff = sdiff;
+          if (sdiff > SUMMARY_TOLERANCE) entry.problems++;
+        }
+        report.comparedSummaries++;
+      }
+
+      if (entry.maxAbsDiff > report.maxAbsDiff) report.maxAbsDiff = entry.maxAbsDiff;
+      if (!entry.ok || entry.problems > 0) { entry.ok = false; report.mismatches++; }
+      report.scenarios.push(entry);
+    }
+    render();
+  }
+
+  function fmt(v, d) { return Number(v).toFixed(d); }
+
+  function render() {
+    var ok = report.mismatches === 0;
+    document.getElementById('verdict').textContent = ok
+      ? 'All ' + report.scenarios.length + ' scenarios reproduce the C++ output'
+      : report.mismatches + ' of ' + report.scenarios.length + ' scenarios differ from the C++ output';
+    document.getElementById('verdict-sub').textContent =
+      report.comparedRows + ' request rows and ' + report.comparedSummaries +
+      ' summary rows compared across ' + report.comparedSchedulers +
+      ' scheduler runs; largest deviation ' + report.maxAbsDiff.toExponential(2) +
+      ' (rounding unit of the reference CSV: 5.0e-5).';
+
+    var html = '';
+    report.scenarios.forEach(function (sc) {
+      html += '<tr>' +
+        '<td>' + sc.name + '</td>' +
+        '<td class="num">' + (sc.requests === undefined ? '—' : sc.requests) + '</td>' +
+        '<td class="num">' + (sc.threads === undefined ? '—' : sc.threads) + '</td>' +
+        '<td class="num">' + (sc.quantumSec === undefined ? '—' : fmt(sc.quantumSec, 2)) + '</td>' +
+        '<td class="num">' + (sc.overheadSec === undefined ? '—' : fmt(sc.overheadSec, 3)) + '</td>' +
+        '<td class="num">' + (sc.schedulers === undefined ? '—' : sc.schedulers) + '</td>' +
+        '<td class="num">' + (sc.rows === undefined ? '—' : sc.rows) + '</td>' +
+        '<td class="num">' + (sc.maxAbsDiff === undefined ? '—' : sc.maxAbsDiff.toExponential(2)) + '</td>' +
+        '<td>' + (sc.ok ? '<span class="best">match</span>' : '<span style="color:var(--danger)">difference</span>') + '</td>' +
+        '</tr>';
+    });
+    document.querySelector('#scenario-table tbody').innerHTML = html;
+
+    var json = JSON.stringify(report, null, 1);
+    document.getElementById('raw-report').textContent = json;
+    document.getElementById('parity-result').textContent = json;
+    document.body.dataset.status = 'ready';
+  }
+
+  try {
+    process();
+  } catch (err) {
+    document.getElementById('verdict').textContent = 'The check could not run: ' + err.message;
+    document.body.dataset.status = 'error';
+  }
+})();
+</script>
+</body>
+</html>

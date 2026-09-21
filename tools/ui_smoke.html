@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>temporary UI smoke test</title>
+</head>
+<body>
+<pre id="smoke">RUNNING</pre>
+<iframe id="frame" src="../docs/index.html" style="width:1200px;height:800px"></iframe>
+<script>
+(function () {
+  var out = document.getElementById('smoke');
+  var frame = document.getElementById('frame');
+  var steps = [];
+  var errors = [];
+
+  function rec(name, passed, detail) {
+    steps.push({ step: name, passed: !!passed, detail: detail === undefined ? '' : detail });
+  }
+
+  function doc() { return frame.contentDocument; }
+  function win() { return frame.contentWindow; }
+
+  function diag() {
+    try { return JSON.parse(doc().getElementById('diag').textContent); } catch (e) { return null; }
+  }
+  function seq() { var d = diag(); return d ? d.runSeq : 0; }
+
+  function waitReady(prevSeq, timeoutMs) {
+    timeoutMs = timeoutMs || 25000;
+    return new Promise(function (resolve, reject) {
+      var start = Date.now();
+      (function poll() {
+        var d = diag();
+        if (d && d.status === 'ready' && (prevSeq === undefined || d.runSeq > prevSeq)) return resolve(d);
+        if (Date.now() - start > timeoutMs) return reject(new Error('timeout waiting for a fresh run'));
+        setTimeout(poll, 60);
+      })();
+    });
+  }
+
+  function rows(sel) { return doc().querySelectorAll(sel).length; }
+  function ev(type) { return new (win().Event)(type, { bubbles: true }); }
+
+  frame.addEventListener('load', function () {
+    win().addEventListener('error', function (e) { errors.push(String(e.message)); });
+    waitReady().then(function (d) {
+      rec('initial run (sample workload)', d.requests === 15 && d.summaryRows === 5,
+        'requests=' + d.requests + ' schedulers=' + d.summaryRows + ' rows=' + d.detailRows);
+      rec('summary table rows rendered', rows('#summary-table tbody tr') === 5,
+        'rows=' + rows('#summary-table tbody tr'));
+      rec('detail table rows rendered', rows('#detail-table tbody tr') === 15,
+        'rows=' + rows('#detail-table tbody tr'));
+      rec('gantt canvas painted',
+        doc().getElementById('gantt').width > 300 && doc().getElementById('gantt').height > 100,
+        'canvas=' + doc().getElementById('gantt').width + 'x' + doc().getElementById('gantt').height);
+      rec('legend has client swatches', doc().getElementById('gantt-legend').children.length > 0,
+        'entries=' + doc().getElementById('gantt-legend').children.length);
+      rec('error banner hidden', doc().getElementById('error-banner').hidden === true);
+      rec('best-value highlighting present', rows('#summary-table .best') > 0,
+        'highlighted cells=' + rows('#summary-table .best'));
+
+      // 1. switch workload to the 120-request dataset
+      var before = seq();
+      var select = doc().getElementById('workload-select');
+      select.value = 'n120';
+      select.dispatchEvent(ev('change'));
+      return waitReady(before);
+    }).then(function () {
+      var d = diag();
+      rec('workload switch to n=120 dataset', d.requests === 120 && d.workload === 'n120',
+        'requests=' + d.requests + ' source=' + d.source);
+      rec('detail table grew to 120 rows', rows('#detail-table tbody tr') === 120,
+        'rows=' + rows('#detail-table tbody tr'));
+
+      // 2. toggle a scheduler off
+      var before = seq();
+      var checks = doc().querySelectorAll('#scheduler-checks input');
+      checks[3].checked = false;
+      checks[3].dispatchEvent(ev('change'));
+      return waitReady(before);
+    }).then(function () {
+      var d = diag();
+      rec('unchecking a scheduler drops a column set',
+        d.summaryRows === 4 && rows('#summary-table tbody tr') === 4,
+        'schedulers=' + d.schedulers.join(',') + ' rows=' + d.summaryRows);
+
+      // 3. switch the timeline to another scheduler
+      doc().querySelectorAll('#scheduler-tabs .tab')[1].click();
+      var label = doc().getElementById('detail-scheduler-label').textContent;
+      rec('timeline tab switches the detail view', /Shortest Job First/i.test(label), 'label=' + label);
+
+      // 4. event stepping
+      var clockBefore = doc().getElementById('clock').textContent;
+      doc().getElementById('step-prev').click();
+      var clockPrev = doc().getElementById('clock').textContent;
+      doc().getElementById('step-next').click();
+      var clockNext = doc().getElementById('clock').textContent;
+      rec('event stepping moves the playhead',
+        clockBefore !== clockPrev && clockPrev !== clockNext,
+        'before=' + clockBefore + ' prev=' + clockPrev + ' next=' + clockNext);
+
+      // 5. playback
+      doc().getElementById('play-btn').click();
+      var label2 = doc().getElementById('play-btn').textContent;
+      rec('play button switches to Pause', label2 === 'Pause', 'label=' + label2);
+      var playStart = doc().getElementById('clock').textContent;
+      return new Promise(function (resolve) { setTimeout(function () { resolve(playStart); }, 900); });
+    }).then(function (playStart) {
+      var clock = doc().getElementById('clock').textContent;
+      rec('playback advances the clock', clock !== playStart, 'before=' + playStart + ' after=' + clock);
+      doc().getElementById('play-btn').click();
+      rec('play button returns to Play', doc().getElementById('play-btn').textContent === 'Play');
+
+      var scrub = doc().getElementById('scrub');
+      scrub.value = '0.5';
+      scrub.dispatchEvent(ev('input'));
+      rec('scrub controls the playhead', /t = /.test(doc().getElementById('clock').textContent),
+        doc().getElementById('clock').textContent);
+
+      // 6. change threads
+      var before = seq();
+      var threads = doc().getElementById('threads');
+      threads.value = '9';
+      threads.dispatchEvent(ev('input'));
+      threads.dispatchEvent(ev('change'));
+      return waitReady(before);
+    }).then(function () {
+      var d = diag();
+      rec('thread count change is applied',
+        d.threads === 9 && rows('#worker-table tbody tr') === 9,
+        'threads=' + d.threads + ' worker rows=' + rows('#worker-table tbody tr'));
+
+      // 7. custom CSV pasted into the page
+      var before = seq();
+      var textarea = doc().getElementById('csv-text');
+      textarea.value = 'request_id,client_id,arrival_time,file_size_mb,estimated_bandwidth_mb_per_sec,priority\n' +
+        '1,3,0.0,100,10,5\n2,3,0.5,50,25,1\n3,7,0.9,400,8,9\n';
+      textarea.dispatchEvent(ev('change'));
+      return waitReady(before);
+    }).then(function () {
+      var d = diag();
+      rec('pasted CSV is simulated', d.requests === 3 && d.workload === 'custom', 'requests=' + d.requests);
+      rec('no runtime errors in the page', errors.length === 0, errors.join(' | '));
+      finish();
+    }).catch(function (err) {
+      rec('harness completed without throwing', false, String((err && err.message) || err));
+      finish();
+    });
+  });
+
+  function finish() {
+    var failed = steps.filter(function (s) { return !s.passed; });
+    out.textContent = JSON.stringify({
+      status: failed.length === 0 ? 'UI_SMOKE_OK' : 'UI_SMOKE_FAIL',
+      passed: steps.length - failed.length,
+      failed: failed.length,
+      steps: steps
+    }, null, 1);
+    document.title = failed.length === 0 ? 'UI_SMOKE_OK' : 'UI_SMOKE_FAIL';
+  }
+
+  window.addEventListener('error', function (e) { errors.push('outer: ' + e.message); });
+})();
+</script>
+</body>
+</html>

@@ -18,3 +18,10 @@ output/*.png
 # OS/editor files
 .DS_Store
 .vscode/settings.json
+
+# Reference outputs rendered by tools/run_oracle.sh (digests are committed in
+# data/reference/oracle_sha256.txt instead of the CSV payloads)
+oracle/
+
+# Local browser-verification scratch space
+.chrome-profile/
