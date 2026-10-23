@@ -22,11 +22,19 @@ struct CompletionEvent {
     int request_index = -1;
     double processed_mb = 0.0;
     double slice_time = 0.0;
+    std::size_t seq = 0;  // monotonic push order, used as a deterministic tie-break
 };
 
 struct CompletionCompare {
     bool operator()(const CompletionEvent& a, const CompletionEvent& b) const {
-        return a.finish_time > b.finish_time;
+        if (a.finish_time != b.finish_time) {
+            return a.finish_time > b.finish_time;
+        }
+        // Round-robin slices complete at identical timestamps; the C++ standard
+        // does not specify the pop order of equal elements in a priority_queue,
+        // and libstdc++/libc++ heap internals differ. Break ties by push order
+        // so the schedule is identical on every compiler/platform.
+        return a.seq > b.seq;
     }
 };
 
@@ -128,6 +136,7 @@ SimulationEngine::RunOutput SimulationEngine::RunOneScheduler(
 
     std::vector<WorkerSlot> slots(static_cast<std::size_t>(config_.threads));
     std::priority_queue<CompletionEvent, std::vector<CompletionEvent>, CompletionCompare> events;
+    std::size_t event_seq = 0;
 
     std::size_t arrived = 0;
     std::size_t completed = 0;
@@ -184,7 +193,7 @@ SimulationEngine::RunOutput SimulationEngine::RunOneScheduler(
             slots[worker_id].request_index = request_index;
 
             workers.SubmitSlice(static_cast<int>(worker_id), req.request_id, sim_time, finish);
-            events.push(CompletionEvent{finish, static_cast<int>(worker_id), request_index, processed_mb, slice_time});
+            events.push(CompletionEvent{finish, static_cast<int>(worker_id), request_index, processed_mb, slice_time, ++event_seq});
         }
 
         const double next_arrival =
