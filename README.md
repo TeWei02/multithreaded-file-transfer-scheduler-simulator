@@ -1,5 +1,7 @@
 # Multithreaded File Transfer and Scheduling Simulator
 
+**Language:** [![中文](https://img.shields.io/badge/%E4%B8%AD%E6%96%87-%E4%B8%AD%E6%96%87%E7%89%88-blue?style=flat-square)](README.md) [![English](https://img.shields.io/badge/English-English-blue?style=flat-square)](README.en.md)
+
 [![CI](https://github.com/TeWei02/multithreaded-file-transfer-scheduler-simulator/actions/workflows/ci.yml/badge.svg)](https://github.com/TeWei02/multithreaded-file-transfer-scheduler-simulator/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-informational)
