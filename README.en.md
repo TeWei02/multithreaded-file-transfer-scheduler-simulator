@@ -15,6 +15,16 @@ outputs and quantitative metrics.
 **Equivalence check page:** https://tewei02.github.io/multithreaded-file-transfer-scheduler-simulator/verify.html
 
 ---
+<div align="center">
+
+## Demo Preview
+
+Drive four worker threads and all five scheduling policies (FIFO / SJF / Priority / RR / WFQ) in the browser demo: watch the Gantt-style dispatch timeline, then compare average waiting, average turnaround, throughput and Jain fairness index across policies.
+
+<video controls width="640" src="assets/demo-preview.webm"></video>
+
+</div>
+
 
 ## 1. Live interactive demo
 

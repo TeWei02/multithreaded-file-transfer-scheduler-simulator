@@ -14,6 +14,16 @@ outputs and quantitative metrics.
 **Equivalence check page:** https://tewei02.github.io/multithreaded-file-transfer-scheduler-simulator/verify.html
 
 ---
+<div align="center">
+
+## Demo Preview
+
+在瀏覽器 Demo 中以 4 個 worker 執行緒驅動五種排程策略（FIFO / SJF / Priority / RR / WFQ），用 Gantt 時間軸呈現任務分派過程，並對比平均等待、平均周轉、吞吐量與 Jain 公平性指標。
+
+<video controls width="640" src="assets/demo-preview.webm"></video>
+
+</div>
+
 
 ## 1. Live interactive demo
 
