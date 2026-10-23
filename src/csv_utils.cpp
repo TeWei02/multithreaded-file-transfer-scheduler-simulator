@@ -146,14 +146,25 @@ void WriteSummaryCsv(const std::string& path, const std::vector<MetricsSummary>&
     }
 }
 
+namespace {
+
+// Deterministic fixed-point draw. std::uniform_real_distribution is allowed to
+// produce different values on different standard libraries (libstdc++ vs
+// libc++) or platforms, which made the CI oracle check diverge from machines
+// where the reference set was generated. Drawing from the raw 32-bit engine
+// output and mapping it with one integer modulo plus one division yields
+// byte-identical workloads everywhere.
+double DrawFixed(std::mt19937& rng, std::uint32_t scale, std::uint32_t span) {
+    return static_cast<double>(rng() % span) / static_cast<double>(scale);
+}
+
+}  // namespace
+
 void GenerateSampleRequestsCsv(const std::string& path, std::size_t n, unsigned int seed) {
     EnsureParentDir(path);
 
     std::mt19937 rng(seed);
     std::uniform_int_distribution<int> client_dist(1, 12);
-    std::uniform_real_distribution<double> arrival_step_dist(0.0, 1.6);
-    std::uniform_real_distribution<double> file_size_dist(10.0, 900.0);
-    std::uniform_real_distribution<double> bw_dist(5.0, 80.0);
     std::uniform_int_distribution<int> priority_dist(1, 10);
 
     std::ofstream fout(path);
@@ -166,9 +177,11 @@ void GenerateSampleRequestsCsv(const std::string& path, std::size_t n, unsigned 
 
     double arrival = 0.0;
     for (std::size_t i = 0; i < n; ++i) {
-        arrival += arrival_step_dist(rng);
-        fout << (i + 1) << ',' << client_dist(rng) << ',' << arrival << ',' << file_size_dist(rng) << ','
-             << bw_dist(rng) << ',' << priority_dist(rng) << '\n';
+        arrival += DrawFixed(rng, 1000, 1600);              // 0.000 .. 1.599 s
+        const double file_size = 10.0 + DrawFixed(rng, 100, 89000);   // 10.00 .. 899.99 MB
+        const double bandwidth = 5.0 + DrawFixed(rng, 100, 75000);    // 5.00 .. 79.99 MB/s
+        fout << (i + 1) << ',' << client_dist(rng) << ',' << arrival << ',' << file_size << ','
+             << bandwidth << ',' << priority_dist(rng) << '\n';
     }
 }
 

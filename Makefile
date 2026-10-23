@@ -1,5 +1,5 @@
 CXX ?= g++
-CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -Wpedantic -Iinclude
+CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -Wpedantic -ffp-contract=off -Iinclude
 LDFLAGS ?= -pthread
 
 TARGET := simulator

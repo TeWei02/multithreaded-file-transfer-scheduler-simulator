@@ -25,8 +25,8 @@ target_link_libraries(simulator PRIVATE simulator_core)
 target_include_directories(simulator PRIVATE include)
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(simulator_core PRIVATE -Wall -Wextra -Wpedantic)
-    target_compile_options(simulator PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(simulator_core PRIVATE -Wall -Wextra -Wpedantic -ffp-contract=off)
+    target_compile_options(simulator PRIVATE -Wall -Wextra -Wpedantic -ffp-contract=off)
 endif()
 
 option(BUILD_TESTING "Build tests" ON)
@@ -38,7 +38,7 @@ if (BUILD_TESTING)
     target_include_directories(simulator_tests PRIVATE include)
 
     if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(simulator_tests PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(simulator_tests PRIVATE -Wall -Wextra -Wpedantic -ffp-contract=off)
     endif()
 
     add_test(NAME simulator_tests COMMAND simulator_tests)
