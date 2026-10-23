@@ -164,8 +164,13 @@ void GenerateSampleRequestsCsv(const std::string& path, std::size_t n, unsigned 
     EnsureParentDir(path);
 
     std::mt19937 rng(seed);
-    std::uniform_int_distribution<int> client_dist(1, 12);
-    std::uniform_int_distribution<int> priority_dist(1, 10);
+    // Deterministic integer draws: std::uniform_int_distribution is
+    // implementation-defined (libstdc++ vs libc++ produce different
+    // sequences), so map the raw engine output with integer modulo to keep
+    // generated workloads byte-identical across compilers/platforms.
+    const auto DrawInt = [&rng](std::uint32_t lo, std::uint32_t hi) {
+        return lo + rng() % (hi - lo + 1);
+    };
 
     std::ofstream fout(path);
     if (!fout.is_open()) {
@@ -180,8 +185,8 @@ void GenerateSampleRequestsCsv(const std::string& path, std::size_t n, unsigned 
         arrival += DrawFixed(rng, 1000, 1600);              // 0.000 .. 1.599 s
         const double file_size = 10.0 + DrawFixed(rng, 100, 89000);   // 10.00 .. 899.99 MB
         const double bandwidth = 5.0 + DrawFixed(rng, 100, 75000);    // 5.00 .. 79.99 MB/s
-        fout << (i + 1) << ',' << client_dist(rng) << ',' << arrival << ',' << file_size << ','
-             << bandwidth << ',' << priority_dist(rng) << '\n';
+        fout << (i + 1) << ',' << DrawInt(1, 12) << ',' << arrival << ',' << file_size << ','
+             << bandwidth << ',' << DrawInt(1, 10) << '\n';
     }
 }
 
