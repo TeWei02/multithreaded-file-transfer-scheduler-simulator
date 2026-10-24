@@ -1,27 +1,5 @@
-# Build artifacts
-simulator
-simulator_tests
-build/
-*.o
-*.obj
-*.a
-*.so
-*.dylib
+# Build artifactssimulatorsimulator_testsbuild/*.o*.obj*.a*.so*.dylib# Runtime-generated datasets and outputsdata/generated_requests.csvoutput/result_*.csvoutput/summary.csvoutput/figures/output/*.png# OS/editor files.DS_Store.vscode/settings.json# Reference outputs rendered by tools/run_oracle.sh (digests are committed in# data/reference/oracle_sha256.txt instead of the CSV payloads)oracle/# Local browser-verification scratch space.chrome-profile/# Runtime logs and caches*.log.cache/
 
-# Runtime-generated datasets and outputs
-data/generated_requests.csv
-output/result_*.csv
-output/summary.csv
-output/figures/
-output/*.png
-
-# OS/editor files
-.DS_Store
-.vscode/settings.json
-
-# Reference outputs rendered by tools/run_oracle.sh (digests are committed in
-# data/reference/oracle_sha256.txt instead of the CSV payloads)
-oracle/
-
-# Local browser-verification scratch space
-.chrome-profile/
+# Runtime logs and caches
+*.log
+.cache/
