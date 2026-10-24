@@ -338,3 +338,14 @@ multithreaded-file-transfer-scheduler-simulator/
 ## License
 
 Released under the [MIT License](LICENSE). © 2026 Te-Wei Ko.
+
+## Project Structure
+
+| 路徑 | 說明 |
+|---|---|
+| `include/` | 核心 header（排程器、執行器、傳輸介面） |
+| `src/` | C++ 實作 |
+| `tests/` | 單元測試 |
+| `scripts/` | 輔助腳本（產生資料、視覺化等） |
+| `assets/` `data/` `docs/` | 展示素材、模擬資料、文件 |
+| `CMakeLists.txt` / `Makefile` | 兩套建置入口 |
